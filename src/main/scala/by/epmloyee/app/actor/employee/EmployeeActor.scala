@@ -5,7 +5,7 @@ import akka.persistence.PersistentActor
 import by.epmloyee.app.actor.employee.EmployeeActor._
 
 class EmployeeActor extends PersistentActor with ActorLogging {
-  var state = State(1L, "First", "First", List("111"), 1)
+  var state = State(1L, "First", "First", List(), 1)
   var snapshotTimer = 5
 
   override def receiveRecover: Receive = {
@@ -39,9 +39,9 @@ class EmployeeActor extends PersistentActor with ActorLogging {
         case Some(_) =>
           state = state.updatePhone(index, number)
           persist(PhoneUpdatedEvent(index, number))
-          sender ! AddPhoneResponse(Some(number))
+          sender ! UpdatePhoneResponse(Some(number))
         case None =>
-          sender ! AddPhoneResponse(None)
+          sender ! UpdatePhoneResponse(None)
       }
 
     case DeletePhoneRequest(index) =>

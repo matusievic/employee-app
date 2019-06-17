@@ -4,8 +4,10 @@ version := "1.0"
 
 scalaVersion := "2.11.8"
 
+val testVersion = "3.0.5"
 libraryDependencies ++= Seq(
-  "org.scalatest" %% "scalatest" % "3.0.0" % Test
+  "org.scalatest" %% "scalatest" % testVersion % Test,
+  "org.scalactic" %% "scalactic" % testVersion
 )
 
 val akkaVersion = "2.5.0"
@@ -33,4 +35,9 @@ libraryDependencies ++= Seq(
   "org.apache.logging.log4j" % "log4j-core"       % "2.11.2"
 )
 
+libraryDependencies ++= Seq(
+  "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.15.1"
+)
+
+resolvers += "dnvriend" at "http://dl.bintray.com/dnvriend/maven"
 resolvers += Resolver.jcenterRepo
