@@ -14,7 +14,7 @@ import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
 
 object EntryPoint extends App {
-  implicit val config: Config = ConfigFactory.load()
+  implicit val httpConf: Config = ConfigFactory.load("http.conf")
   implicit val system: ActorSystem = ActorSystem("ActorSystem")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContextExecutor = system.dispatcher
@@ -22,8 +22,8 @@ object EntryPoint extends App {
 
   val employeeActor = system.actorOf(EmployeeActor.props)
 
-  val host = config.getString("akka.http.server.host")
-  val port = config.getInt("akka.http.server.port")
+  val host = httpConf.getString("http.server.host")
+  val port = httpConf.getInt("http.server.port")
   val bindingFuture = Http().bindAndHandle(PhoneRoutes(employeeActor).routes, host, port)
   println(s"Server online at http://$host:$port/\nPress RETURN to stop...")
   StdIn.readLine()
