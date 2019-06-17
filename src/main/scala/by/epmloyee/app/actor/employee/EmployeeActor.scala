@@ -50,6 +50,7 @@ class EmployeeActor extends PersistentActor with ActorLogging {
         case Some(number) =>
           state = state.deletePhone(number)
           persist(PhoneDeletedEvent(number, state.snapshotTimer))
+          sender ! DeletePhoneResponse(Some(number))
         case None =>
           sender ! DeletePhoneResponse(None)
       }

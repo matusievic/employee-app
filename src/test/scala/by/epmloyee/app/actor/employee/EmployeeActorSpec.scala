@@ -7,54 +7,79 @@ import by.epmloyee.app.actor.employee.util.RestartableActor
 import by.epmloyee.app.actor.employee.util.RestartableActor.RestartActor
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
-class EmployeeActorTest extends TestKit(ActorSystem("ActorSystem")) with WordSpecLike
-  with Matchers
-  with BeforeAndAfterAll
-  with ImplicitSender {
+import scala.util.Random
 
+class EmployeeActorSpec extends TestKit(ActorSystem("ActorSystem")) with WordSpecLike
+                                                                    with Matchers
+                                                                    with BeforeAndAfterAll
+                                                                    with ImplicitSender {
   "EmployeeActor" should {
-    val numberToAdd = "777"
-    val indexToUpdate = 0
-    val numberToUpdate = "555"
+    "add a phone to list and preserve it after restart" in {
+      withActor { actor =>
+        val numberToAdd = "777"
+        actor ! AddPhoneRequest(numberToAdd)
+        expectMsg(AddPhoneResponse(Some(numberToAdd)))
 
-    test("add a phone to list and preserve it after restart") { actor =>
-      actor ! AddPhoneRequest(numberToAdd)
-      expectMsg(AddPhoneResponse(Some(numberToAdd)))
-
-      actor ! RestartActor
-      actor ! ReadAllPhonesRequest()
-      expectMsg(ReadAllPhonesResponse(Seq(numberToAdd)))
+        actor ! RestartActor
+        actor ! ReadAllPhonesRequest()
+        expectMsg(ReadAllPhonesResponse(Seq("1", numberToAdd)))
+      }
     }
 
-    //"add a phone to list and preserve it after restart" in {
-    //  actor ! AddPhoneRequest(numberToAdd)
-    //  expectMsg(AddPhoneResponse(Some(numberToAdd)))
-    //
-    //  actor ! RestartActor
-    //  actor ! ReadAllPhonesRequest()
-    //  expectMsg(ReadAllPhonesResponse(Seq(numberToAdd)))
-    //}
-    //
-    //"update a phone in list and preserve it after restart" in {
-    //  actor ! AddPhoneRequest(numberToAdd)
-    //  expectMsg(AddPhoneResponse(Some(numberToAdd)))
-    //  actor ! UpdatePhoneRequest(indexToUpdate, numberToUpdate)
-    //  expectMsg(UpdatePhoneResponse(Some(numberToUpdate)))
-    //
-    //  actor ! RestartActor
-    //  actor ! ReadAllPhonesRequest
-    //  expectMsg(ReadAllPhonesResponse(Seq(numberToUpdate)))
-    //}
+    "read a phone to list and preserve it after restart" in {
+      withActor { actor =>
+        val indexToRead = 0
+        val expectedValue = "1"
+        actor ! ReadPhoneRequest(indexToRead)
+        expectMsg(ReadPhoneResponse(Some(expectedValue)))
+
+        actor ! RestartActor
+        actor ! ReadAllPhonesRequest()
+        expectMsg(ReadAllPhonesResponse(Seq(expectedValue)))
+      }
+    }
+
+    "update a phone in list and preserve it after restart" in {
+      withActor { actor =>
+        val indexToUpdate = 0
+        val targetValue = "5"
+
+        actor ! UpdatePhoneRequest(indexToUpdate, targetValue)
+        expectMsg(UpdatePhoneResponse(Some(targetValue)))
+
+        actor ! RestartActor
+        actor ! ReadAllPhonesRequest()
+        expectMsg(ReadAllPhonesResponse(Seq(targetValue)))
+      }
+    }
+
+    "delete a phone in list and preserve it after restart" in {
+      withActor { actor =>
+        val indexToDelete = 0
+        val numberToDelete = "1"
+
+        actor ! DeletePhoneRequest(indexToDelete)
+        expectMsg(DeletePhoneResponse(Some(numberToDelete)))
+
+        actor ! RestartActor
+        actor ! ReadAllPhonesRequest()
+        expectMsg(ReadAllPhonesResponse(Seq()))
+      }
+    }
   }
 
-  private def test(message: String)(test: ActorRef => Any): Unit = {
+  override protected def afterAll(): Unit = {
+    shutdown(system)
+  }
+
+  private def withActor(test: ActorRef => Unit): Unit = {
     val actor = makeEmployeeActor()
-    message in test(actor)
+    test(actor)
     killActor(actor)
   }
 
   private def makeEmployeeActor() = {
-    val actor = system.actorOf(Props(new EmployeeActor() with RestartableActor))
+    val actor = system.actorOf(Props(new EmployeeActor() with RestartableActor), Random.nextInt(100).toString)
     actor ! AddPhoneRequest("1")
     expectMsg(AddPhoneResponse(Some("1")))
     actor
@@ -62,9 +87,5 @@ class EmployeeActorTest extends TestKit(ActorSystem("ActorSystem")) with WordSpe
 
   private def killActor(actor: ActorRef): Unit = {
     actor ! PoisonPill
-  }
-
-  override protected def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
   }
 }
