@@ -1,20 +1,21 @@
 package by.epmloyee.app.actor.employee
 
 import akka.actor.{ActorLogging, Props}
-import akka.persistence.PersistentActor
+import akka.persistence.{PersistentActor, SnapshotOffer}
 import by.epmloyee.app.actor.employee.EmployeeActor._
 
 class EmployeeActor extends PersistentActor with ActorLogging {
-  var state = State(1L, "First", "First", List(), 1)
-  var snapshotTimer = 5
+  var state = State(1L, "First", "First", List(), 1, 5)
 
   override def receiveRecover: Receive = {
-    case PhoneAddedEvent(number) =>
-      state = state.addPhone(number)
-    case PhoneUpdatedEvent(index, number) =>
-      state = state.updatePhone(index, number)
-    case PhoneDeletedEvent(number) =>
-      state = state.deletePhone(number)
+    case PhoneAddedEvent(number, snapshotTimer) =>
+      state = state.addPhone(number).snapshotTimer(snapshotTimer)
+    case PhoneUpdatedEvent(index, number, snapshotTimer) =>
+      state = state.updatePhone(index, number).snapshotTimer(snapshotTimer)
+    case PhoneDeletedEvent(number, snapshotTimer) =>
+      state = state.deletePhone(number).snapshotTimer(snapshotTimer)
+    case SnapshotOffer(_, s: State) =>
+      state = s
   }
 
   override def receiveCommand: Receive = {
@@ -24,7 +25,7 @@ class EmployeeActor extends PersistentActor with ActorLogging {
           sender ! AddPhoneResponse(None)
         case None =>
           state = state.addPhone(number)
-          persist(PhoneAddedEvent(number))
+          persist(PhoneAddedEvent(number, state.snapshotTimer))
           sender ! AddPhoneResponse(Some(number))
       }
 
@@ -38,7 +39,7 @@ class EmployeeActor extends PersistentActor with ActorLogging {
       state.phones.lift(index) match {
         case Some(_) =>
           state = state.updatePhone(index, number)
-          persist(PhoneUpdatedEvent(index, number))
+          persist(PhoneUpdatedEvent(index, number, state.snapshotTimer))
           sender ! UpdatePhoneResponse(Some(number))
         case None =>
           sender ! UpdatePhoneResponse(None)
@@ -48,7 +49,7 @@ class EmployeeActor extends PersistentActor with ActorLogging {
       state.phones.lift(index) match {
         case Some(number) =>
           state = state.deletePhone(number)
-          persist(PhoneDeletedEvent(number))
+          persist(PhoneDeletedEvent(number, state.snapshotTimer))
         case None =>
           sender ! DeletePhoneResponse(None)
       }
@@ -60,10 +61,10 @@ class EmployeeActor extends PersistentActor with ActorLogging {
     super.persist(event) { e =>
       context.system.eventStream.publish(event)
     }
-    snapshotTimer -= 1
-    if (snapshotTimer == 0) {
+    state = state.decrementSnapshotTimer()
+    if (state.snapshotTimer == 0) {
       saveSnapshot(state)
-      snapshotTimer = 5
+      state = state.resetSnapshotTimer()
     }
   }
 }
@@ -72,10 +73,13 @@ object EmployeeActor {
   val props = Props(classOf[EmployeeActor])
 
 
-  case class State(id: Long, name: String, surname: String, phones: List[String], salary: Double) {
+  case class State(id: Long, name: String, surname: String, phones: List[String], salary: Double, snapshotTimer: Int) {
     def addPhone(number: String): State = copy(phones = phones :+ number)
     def updatePhone(index: Int, number: String): State = copy(phones = phones.updated(index, number))
     def deletePhone(number: String): State = copy(phones = phones.filterNot(_ == number))
+    def decrementSnapshotTimer(): State = copy(snapshotTimer = snapshotTimer - 1)
+    def resetSnapshotTimer(): State = copy(snapshotTimer = 5)
+    def snapshotTimer(snapshotTimer: Int): State = copy(snapshotTimer = snapshotTimer)
   }
 
 
@@ -99,7 +103,7 @@ object EmployeeActor {
 
   sealed trait EmployeeEvent
 
-  case class PhoneAddedEvent(number: String) extends EmployeeEvent
-  case class PhoneUpdatedEvent(index: Int, number: String) extends EmployeeEvent
-  case class PhoneDeletedEvent(number: String) extends EmployeeEvent
+  case class PhoneAddedEvent(number: String, snapshotTimer: Int) extends EmployeeEvent
+  case class PhoneUpdatedEvent(index: Int, number: String, snapshotTimer: Int) extends EmployeeEvent
+  case class PhoneDeletedEvent(number: String, snapshotTimer: Int) extends EmployeeEvent
 }
