@@ -15,56 +15,31 @@ class EmployeeActorSpec extends TestKit(ActorSystem("ActorSystem")) with WordSpe
                                                                     with ImplicitSender {
   "EmployeeActor" should {
     "add a phone to list and preserve it after restart" in {
-      withActor { actor =>
-        val numberToAdd = "777"
-        actor ! AddPhoneRequest(numberToAdd)
-        expectMsg(AddPhoneResponse(Some(numberToAdd)))
-
-        actor ! RestartActor
-        actor ! ReadAllPhonesRequest()
-        expectMsg(ReadAllPhonesResponse(Seq("1", numberToAdd)))
-      }
+      { actor: ActorRef =>
+        actor ! AddPhoneRequest("777")
+        expectMsg(AddPhoneResponse(Some("777")))
+      } afterRestartShouldContain ("1", "777")
     }
 
     "read a phone to list and preserve it after restart" in {
-      withActor { actor =>
-        val indexToRead = 0
-        val expectedValue = "1"
-        actor ! ReadPhoneRequest(indexToRead)
-        expectMsg(ReadPhoneResponse(Some(expectedValue)))
-
-        actor ! RestartActor
-        actor ! ReadAllPhonesRequest()
-        expectMsg(ReadAllPhonesResponse(Seq(expectedValue)))
-      }
+      { actor: ActorRef =>
+        actor ! ReadPhoneRequest(0)
+        expectMsg(ReadPhoneResponse(Some("1")))
+      } afterRestartShouldContain "1"
     }
 
     "update a phone in list and preserve it after restart" in {
-      withActor { actor =>
-        val indexToUpdate = 0
-        val targetValue = "5"
-
-        actor ! UpdatePhoneRequest(indexToUpdate, targetValue)
-        expectMsg(UpdatePhoneResponse(Some(targetValue)))
-
-        actor ! RestartActor
-        actor ! ReadAllPhonesRequest()
-        expectMsg(ReadAllPhonesResponse(Seq(targetValue)))
-      }
+      { actor: ActorRef =>
+        actor ! UpdatePhoneRequest(0, "5")
+        expectMsg(UpdatePhoneResponse(Some("5")))
+      } afterRestartShouldContain "5"
     }
 
     "delete a phone in list and preserve it after restart" in {
-      withActor { actor =>
-        val indexToDelete = 0
-        val numberToDelete = "1"
-
-        actor ! DeletePhoneRequest(indexToDelete)
-        expectMsg(DeletePhoneResponse(Some(numberToDelete)))
-
-        actor ! RestartActor
-        actor ! ReadAllPhonesRequest()
-        expectMsg(ReadAllPhonesResponse(Seq()))
-      }
+      { actor: ActorRef =>
+        actor ! DeletePhoneRequest(0)
+        expectMsg(DeletePhoneResponse(Some("1")))
+      } afterRestartShouldContain ()
     }
   }
 
@@ -72,20 +47,25 @@ class EmployeeActorSpec extends TestKit(ActorSystem("ActorSystem")) with WordSpe
     shutdown(system)
   }
 
-  private def withActor(test: ActorRef => Unit): Unit = {
-    val actor = makeEmployeeActor()
-    test(actor)
-    killActor(actor)
-  }
+  implicit class TestCase(before: ActorRef => Any) extends AnyRef {
+    def afterRestartShouldContain(values: String*) = {
+      val actor = makeEmployeeActor()
+      before(actor)
+      actor ! RestartActor
+      actor ! ReadAllPhonesRequest()
+      expectMsg(ReadAllPhonesResponse(values))
+      killActor(actor)
+    }
 
-  private def makeEmployeeActor() = {
-    val actor = system.actorOf(Props(new EmployeeActor() with RestartableActor), Random.nextInt(100).toString)
-    actor ! AddPhoneRequest("1")
-    expectMsg(AddPhoneResponse(Some("1")))
-    actor
-  }
+    private def makeEmployeeActor() = {
+      val actor = system.actorOf(Props(new EmployeeActor() with RestartableActor), Random.nextInt(100).toString)
+      actor ! AddPhoneRequest("1")
+      expectMsg(AddPhoneResponse(Some("1")))
+      actor
+    }
 
-  private def killActor(actor: ActorRef): Unit = {
-    actor ! PoisonPill
+    private def killActor(actor: ActorRef): Unit = {
+      actor ! PoisonPill
+    }
   }
 }
