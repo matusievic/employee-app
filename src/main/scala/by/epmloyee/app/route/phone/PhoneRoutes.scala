@@ -13,7 +13,7 @@ import scala.concurrent.ExecutionContext
 class PhoneRoutes(val actor: ActorRef)(implicit val executor: ExecutionContext, val timeout: Timeout) {
   val routes: Route = pathPrefix("employee") {
     pathPrefix("phones") {
-      pathEnd {
+      pathEndOrSingleSlash {
         get {
           complete((actor ? ReadAllPhonesRequest()).map(resp => HttpResponse(entity = resp.toString)))
         } ~
@@ -24,17 +24,19 @@ class PhoneRoutes(val actor: ActorRef)(implicit val executor: ExecutionContext, 
           }
       } ~
         path(IntNumber) { id =>
-          get {
-            complete((actor ? ReadPhoneRequest(id)).map(resp => HttpResponse(entity = resp.toString)))
-          } ~
-            put {
-              entity(as[String]) { body =>
-                complete((actor ? UpdatePhoneRequest(id, body)).map(resp => HttpResponse(entity = resp.toString)))
-              }
+          pathEndOrSingleSlash {
+            get {
+              complete((actor ? ReadPhoneRequest(id)).map(resp => HttpResponse(entity = resp.toString)))
             } ~
-            delete {
-              complete((actor ? DeletePhoneRequest(id)).map(resp => HttpResponse(entity = resp.toString)))
-            }
+              put {
+                entity(as[String]) { body =>
+                  complete((actor ? UpdatePhoneRequest(id, body)).map(resp => HttpResponse(entity = resp.toString)))
+                }
+              } ~
+              delete {
+                complete((actor ? DeletePhoneRequest(id)).map(resp => HttpResponse(entity = resp.toString)))
+              }
+          }
         }
     }
   }
