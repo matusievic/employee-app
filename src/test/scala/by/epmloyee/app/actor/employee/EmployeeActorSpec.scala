@@ -9,36 +9,40 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 import scala.util.Random
 
-class EmployeeActorSpec extends TestKit(ActorSystem("ActorSystem")) with WordSpecLike
-                                                                    with Matchers
-                                                                    with BeforeAndAfterAll
-                                                                    with ImplicitSender {
+class EmployeeActorSpec extends TestKit(ActorSystem("ActorSystem"))
+                        with WordSpecLike
+                        with Matchers
+                        with BeforeAndAfterAll
+                        with ImplicitSender {
+  val sourcePhone = Phone("1", "1")
+  val testPhone = Phone("2", "2")
+
   "EmployeeActor" should {
     "add a phone to list and preserve it after restart" in {
       { actor: ActorRef =>
-        actor ! AddPhoneRequest("777")
-        expectMsg(AddPhoneResponse(Some("777")))
-      } afterRestartShouldContain ("1", "777")
+        actor ! AddPhone(testPhone)
+        expectMsg(Right(testPhone))
+      } afterRestartShouldContain (sourcePhone, testPhone)
     }
 
     "read a phone to list and preserve it after restart" in {
       { actor: ActorRef =>
-        actor ! ReadPhoneRequest(0)
-        expectMsg(ReadPhoneResponse(Some("1")))
-      } afterRestartShouldContain "1"
+        actor ! ReadPhone(0)
+        expectMsg(Right(sourcePhone))
+      } afterRestartShouldContain sourcePhone
     }
 
     "update a phone in list and preserve it after restart" in {
       { actor: ActorRef =>
-        actor ! UpdatePhoneRequest(0, "5")
-        expectMsg(UpdatePhoneResponse(Some("5")))
-      } afterRestartShouldContain "5"
+        actor ! UpdatePhone(0, testPhone)
+        expectMsg(Right(testPhone))
+      } afterRestartShouldContain testPhone
     }
 
     "delete a phone in list and preserve it after restart" in {
       { actor: ActorRef =>
-        actor ! DeletePhoneRequest(0)
-        expectMsg(DeletePhoneResponse(Some("1")))
+        actor ! DeletePhone(0)
+        expectMsg(Right(sourcePhone))
       } afterRestartShouldContain ()
     }
   }
@@ -48,19 +52,19 @@ class EmployeeActorSpec extends TestKit(ActorSystem("ActorSystem")) with WordSpe
   }
 
   implicit class TestCase(before: ActorRef => Any) extends AnyRef {
-    def afterRestartShouldContain(values: String*) = {
+    def afterRestartShouldContain(values: Phone*): Unit = {
       val actor = makeEmployeeActor()
       before(actor)
       actor ! RestartActor
-      actor ! ReadAllPhonesRequest()
-      expectMsg(ReadAllPhonesResponse(values))
+      actor ! ReadAllPhones()
+      expectMsg(Right(values))
       killActor(actor)
     }
 
-    private def makeEmployeeActor() = {
+    private def makeEmployeeActor(): ActorRef = {
       val actor = system.actorOf(Props(new EmployeeActor() with RestartableActor), Random.nextInt(100).toString)
-      actor ! AddPhoneRequest("1")
-      expectMsg(AddPhoneResponse(Some("1")))
+      actor ! AddPhone(sourcePhone)
+      expectMsg(Right(sourcePhone))
       actor
     }
 
@@ -68,4 +72,5 @@ class EmployeeActorSpec extends TestKit(ActorSystem("ActorSystem")) with WordSpe
       actor ! PoisonPill
     }
   }
+
 }

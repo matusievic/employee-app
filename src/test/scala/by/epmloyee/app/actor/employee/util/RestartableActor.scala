@@ -5,7 +5,7 @@ import by.epmloyee.app.actor.employee.util.RestartableActor.{RestartActor, Resta
 
 trait RestartableActor extends PersistentActor {
 
-  abstract override def receiveCommand = super.receiveCommand orElse {
+  abstract override def receiveCommand: PartialFunction[Any, Unit] = super.receiveCommand orElse {
     case RestartActor => throw RestartActorException
   }
 }
