@@ -39,5 +39,12 @@ libraryDependencies ++= Seq(
   "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.15.1"
 )
 
+val circeVersion = "0.11.1"
+libraryDependencies ++= Seq(
+  "io.circe" %% "circe-core"    % circeVersion,
+  "io.circe" %% "circe-generic" % circeVersion,
+  "io.circe" %% "circe-parser"  % circeVersion
+)
+
 resolvers += "dnvriend" at "http://dl.bintray.com/dnvriend/maven"
 resolvers += Resolver.jcenterRepo
