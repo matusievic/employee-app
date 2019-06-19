@@ -1,40 +1,36 @@
 package by.epmloyee.app.route.phone
 
 import akka.actor.ActorRef
-import akka.http.scaladsl.model.HttpResponse
-import akka.http.scaladsl.server.Directives.{entity, _}
 import akka.http.scaladsl.server.Route
 import akka.pattern.ask
 import akka.util.Timeout
 import by.epmloyee.app.actor.employee.EmployeeActor._
+import by.epmloyee.app.route.directive.AppDirective._
+import by.epmloyee.app.route.json.JsonImplicits
 
 import scala.concurrent.ExecutionContext
 
-class PhoneRoutes(val actor: ActorRef)(implicit val executor: ExecutionContext, val timeout: Timeout) {
+class PhoneRoutes(val actor: ActorRef)(implicit val executor: ExecutionContext, val timeout: Timeout) extends JsonImplicits {
   val routes: Route = pathPrefix("employee") {
     pathPrefix("phones") {
       pathEndOrSingleSlash {
         get {
-          complete((actor ? ReadAllPhonesRequest()).map(resp => HttpResponse(entity = resp.toString)))
+          handleRequest[List[Phone]](() => actor ? ReadAllPhones())
         } ~
           post {
-            entity(as[String]) { body =>
-              complete((actor ? AddPhoneRequest(body)).map(resp => HttpResponse(entity = resp.toString)))
-            }
+            handleRequest[Phone, Phone](phone => actor ? AddPhone(phone))
           }
       } ~
         path(IntNumber) { id =>
           pathEndOrSingleSlash {
             get {
-              complete((actor ? ReadPhoneRequest(id)).map(resp => HttpResponse(entity = resp.toString)))
+              handleRequest[Phone](() => actor ? ReadPhone(id))
             } ~
               put {
-                entity(as[String]) { body =>
-                  complete((actor ? UpdatePhoneRequest(id, body)).map(resp => HttpResponse(entity = resp.toString)))
-                }
+                handleRequest[Phone, Phone](phone => actor ? UpdatePhone(id, phone))
               } ~
               delete {
-                complete((actor ? DeletePhoneRequest(id)).map(resp => HttpResponse(entity = resp.toString)))
+                handleRequest[Phone](() => actor ? DeletePhone(id))
               }
           }
         }
