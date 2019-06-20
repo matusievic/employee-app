@@ -7,15 +7,15 @@ import by.epmloyee.app.actor.common.error.{InvalidParam, NotFound}
 import by.epmloyee.app.actor.employee.EmployeeActor._
 
 class EmployeeActor extends PersistentActor with ActorLogging {
-  var state = State(1L, "First", "First", List.empty[Phone], 1, 5)
+  var state = State(1L, "First", "First", List.empty[Phone], 1)
 
   override def receiveRecover: Receive = {
-    case PhoneAddedEvent(phone, snapshotTimer) =>
-      state = state.addPhone(phone).snapshotTimer(snapshotTimer)
-    case PhoneUpdatedEvent(index, phone, snapshotTimer) =>
-      state = state.updatePhone(index, phone).snapshotTimer(snapshotTimer)
-    case PhoneDeletedEvent(phone, snapshotTimer) =>
-      state = state.deletePhone(phone).snapshotTimer(snapshotTimer)
+    case PhoneAddedEvent(phone) =>
+      state = state.addPhone(phone)
+    case PhoneUpdatedEvent(index, phone) =>
+      state = state.updatePhone(index, phone)
+    case PhoneDeletedEvent(phone) =>
+      state = state.deletePhone(phone)
     case SnapshotOffer(_, s: State) =>
       state = s
   }
@@ -27,7 +27,7 @@ class EmployeeActor extends PersistentActor with ActorLogging {
           sender ! Left(InvalidParam("This phone already present"))
         case None =>
           state = state.addPhone(phone)
-          persist(PhoneAddedEvent(phone, state.snapshotTimer))
+          persist(PhoneAddedEvent(phone))
           sender ! Right(phone)
       }
 
@@ -41,7 +41,7 @@ class EmployeeActor extends PersistentActor with ActorLogging {
       state.phones.lift(index) match {
         case Some(_) =>
           state = state.updatePhone(index, phone)
-          persist(PhoneUpdatedEvent(index, phone, state.snapshotTimer))
+          persist(PhoneUpdatedEvent(index, phone))
           sender ! Right(phone)
         case None =>
           sender ! Left(InvalidParam("There's no phone with such index"))
@@ -51,7 +51,7 @@ class EmployeeActor extends PersistentActor with ActorLogging {
       state.phones.lift(index) match {
         case Some(phone) =>
           state = state.deletePhone(phone)
-          persist(PhoneDeletedEvent(phone, state.snapshotTimer))
+          persist(PhoneDeletedEvent(phone))
           sender ! Right(phone)
         case None =>
           sender ! Left(NotFound("There's no phone with such index"))
@@ -64,10 +64,8 @@ class EmployeeActor extends PersistentActor with ActorLogging {
     super.persist(event) { _ =>
       context.system.eventStream.publish(event)
     }
-    state = state.decrementSnapshotTimer()
-    if (state.snapshotTimer == 0) {
+    if (lastSequenceNr % 5 == 0 && lastSequenceNr != 0) {
       saveSnapshot(state)
-      state = state.resetSnapshotTimer()
     }
   }
 }
@@ -76,13 +74,10 @@ object EmployeeActor {
   val props = Props(classOf[EmployeeActor])
 
 
-  case class State(id: Long, name: String, surname: String, phones: List[Phone], salary: Double, snapshotTimer: Int) {
+  case class State(id: Long, name: String, surname: String, phones: List[Phone], salary: Double) {
     def addPhone(phone: Phone): State = copy(phones = phones :+ phone)
     def updatePhone(index: Int, number: Phone): State = copy(phones = phones.updated(index, number))
     def deletePhone(phone: Phone): State = copy(phones = phones.filterNot(_ == phone))
-    def decrementSnapshotTimer(): State = copy(snapshotTimer = snapshotTimer - 1)
-    def resetSnapshotTimer(): State = copy(snapshotTimer = 5)
-    def snapshotTimer(snapshotTimer: Int): State = copy(snapshotTimer = snapshotTimer)
   }
 
   case class Phone(code: String, number: String)
@@ -103,7 +98,7 @@ object EmployeeActor {
 
   sealed trait EmployeeEvent
 
-  case class PhoneAddedEvent(phone: Phone, snapshotTimer: Int) extends EmployeeEvent
-  case class PhoneUpdatedEvent(index: Int, phone: Phone, snapshotTimer: Int) extends EmployeeEvent
-  case class PhoneDeletedEvent(phone: Phone, snapshotTimer: Int) extends EmployeeEvent
+  case class PhoneAddedEvent(phone: Phone) extends EmployeeEvent
+  case class PhoneUpdatedEvent(index: Int, phone: Phone) extends EmployeeEvent
+  case class PhoneDeletedEvent(phone: Phone) extends EmployeeEvent
 }
